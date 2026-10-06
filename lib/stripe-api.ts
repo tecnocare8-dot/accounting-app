@@ -1,7 +1,7 @@
 import type { StripeItem } from './stripe-import';
 
 // Stripe の API を、読み取り専用の制限付きキーで読む。
-// 必要な権限（すべて「読み取り」）：Balance、Charges、Checkout Sessions、Invoices、Payouts
+// 必要な権限（すべて「読み取り」）：Balance、Balance Transaction Sources、Charges、Checkout Sessions、Invoices、Payouts
 
 export class StripeKeyError extends Error {}
 

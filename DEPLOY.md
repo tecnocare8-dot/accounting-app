@@ -37,6 +37,6 @@
 
 ## Stripe との連携（段階2）
 1. Stripe のダッシュボード →「開発者」→「API キー」→「制限付きのキーを作成」
-2. 権限は次の5つを「読み取り」に（ほかは「なし」）：Balance、Charges、Checkout Sessions、Invoices、Payouts
+2. 権限は次の6つを「読み取り」に（ほかは「なし」）：Balance、Balance Transaction Sources、Charges、Checkout Sessions、Invoices、Payouts
 3. 会計アプリの設定 →「Stripe との連携」に rk_live_ で始まるキーを貼る（暗号化して Neon に保存。sk_ は受け付けない）
 4. 取り込み →「Stripe」→ 期間を選んで読み込む。銀行の明細では、Stripe からの振込の摘要の規則を「取り込まない」にしておく

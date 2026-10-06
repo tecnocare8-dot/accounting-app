@@ -313,7 +313,7 @@ function StripeSection() {
             <p>サイトの決済を取り込むために、Stripe の<b>読み取り専用の制限付きキー</b>を入れてください。作り方：</p>
             <ol className="list-decimal space-y-1 pl-5">
               <li>Stripe のダッシュボード →「開発者」→「API キー」→「制限付きのキーを作成」</li>
-              <li>名前を「会計アプリ（読み取り）」にし、次の権限を<b>読み取り</b>にする（ほかは「なし」のまま）：Balance、Charges、Checkout Sessions、Invoices、Payouts</li>
+              <li>名前を「会計アプリ（読み取り）」にし、次の権限を<b>読み取り</b>にする（ほかは「なし」のまま）：Balance、Balance Transaction Sources、Charges、Checkout Sessions、Invoices、Payouts</li>
               <li>作ったキー（rk_live_ で始まる）をコピーして、下に貼る</li>
             </ol>
             <p>キーは暗号化して保存し、画面には末尾しか出しません。書き込みもできる秘密キー（sk_ で始まる）は受け付けません。</p>
