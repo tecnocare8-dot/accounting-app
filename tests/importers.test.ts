@@ -72,7 +72,8 @@ describe('書類アプリ', () => {
     ]);
     const c = buildCandidates('document-incomes', inc, ctx());
     expect(c[0].input.lines).toEqual([line('102', 49560, '', 0), line('502', 440, '', 0, '振込手数料など'), line('', 0, '406', 50000)]);
-    expect(c[0].input.segment).toBe('common');
+    // 収入の科目（受託研修収入＝収益事業）で決まる
+    expect(c[0].input.segment).toBe('profit');
     const pay = toCsv(['ID', '請求書ID', '請求書番号', '入金日', '金額', '手数料', '方法', '登録日時'], [['m1', 'd1', 'INV-2026-0001', '2026-07-11', 3000, 0, '現金', '']]);
     const p = buildCandidates('document-payments', pay, ctx());
     expect(p[0].input.lines).toEqual([line('101', 3000, '', 0), line('', 0, '406', 3000)]);

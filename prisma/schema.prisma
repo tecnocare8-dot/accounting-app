@@ -31,6 +31,8 @@ model Entity {
   name            String
   driveFolderId   String?
   driveFolderName String?
+  // Stripe の読み取り専用の制限付きキー（lib/crypto.ts で暗号化）。帳簿の取り込みにだけ使う
+  stripeKey       String?
   createdAt       DateTime @default(now())
 
   @@index([ownerId])

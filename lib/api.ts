@@ -4,6 +4,7 @@ import { DriveAuthError } from './drive/backend';
 import { ImportFormatError } from './importers';
 import { NotFoundError, ValidationError } from './journal';
 import { FolderMissingError, LedgerMissingError } from './store';
+import { StripeKeyError } from './stripe-api';
 
 /** APIの共通のエラー応答。画面は code を見て「ログインし直す」「法人を作る」へ案内する */
 export function errorResponse(error: unknown, context: string): Response {
@@ -18,6 +19,7 @@ export function errorResponse(error: unknown, context: string): Response {
   }
   if (error instanceof ValidationError) return json(400, error.messages.join('\n'), { messages: error.messages });
   if (error instanceof ImportFormatError) return json(400, error.message);
+  if (error instanceof StripeKeyError) return json(400, error.message, { code: 'STRIPE_KEY' });
   if (error instanceof NotFoundError) return json(404, error.message);
   console.error(`${context}:`, error);
   // 設定の不足（Google Cloud で Drive API が無効 など）は、そのまま伝える

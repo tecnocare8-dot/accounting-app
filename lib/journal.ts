@@ -99,14 +99,9 @@ export function counterAccount(v: Voucher, code: string, side: 'debit' | 'credit
   return others.size === 1 ? [...others][0] : others.size ? '諸口' : '';
 }
 
-/** 伝票の区分の初期値：最初に出てくる収入・支出の科目の区分。なければ非収益事業 */
+/** 伝票の区分の初期値：収入の科目があればその区分（売上と手数料の伝票は売上で決める）、なければ最初の支出の科目の区分、どちらもなければ非収益事業 */
 export function defaultSegment(lines: JournalLine[], accounts: Account[]): Segment {
   const map = accountMap(accounts);
-  for (const l of lines) {
-    for (const code of [l.debitAccount, l.creditAccount]) {
-      const a = code ? map.get(code) : undefined;
-      if (a && (a.type === 'revenue' || a.type === 'expense')) return a.segment;
-    }
-  }
-  return 'nonprofit';
+  const used = lines.flatMap((l) => [l.debitAccount, l.creditAccount]).map((c) => (c ? map.get(c) : undefined)).filter((a): a is Account => !!a);
+  return (used.find((a) => a.type === 'revenue') ?? used.find((a) => a.type === 'expense'))?.segment ?? 'nonprofit';
 }

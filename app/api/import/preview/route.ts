@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { handle } from '@/lib/api';
 import { loadBooks } from '@/lib/books';
 import { decodeText, parseCsv } from '@/lib/csv';
-import { storeForUser } from '@/lib/entity-store';
+import { storeForUser, stripeForUser } from '@/lib/entity-store';
+import { isDate } from '@/lib/fiscal';
+import { jstRange } from '@/lib/stripe-api';
+import { fromStripe } from '@/lib/stripe-import';
 import { buildCandidates, guessBank, IMPORT_KINDS, type BankOptions, type ImportKind } from '@/lib/importers';
 import { ValidationError } from '@/lib/journal';
 
@@ -17,6 +20,17 @@ export async function POST(req: Request) {
     const kind = String(form?.get('kind') ?? '') as ImportKind;
     const file = form?.get('file');
     if (!IMPORT_KINDS.includes(kind)) throw new ValidationError(['取り込み元を選んでください。']);
+    if (kind === 'stripe') {
+      // Stripe は CSV ではなく、期間を選んで API から読む
+      const from = String(form?.get('from') ?? '');
+      const to = String(form?.get('to') ?? '');
+      if (!isDate(from) || !isDate(to) || from > to) throw new ValidationError(['読み込む期間を正しく選んでください。']);
+      if (Date.parse(to) - Date.parse(from) > 400 * 86400_000) throw new ValidationError(['一度に読み込めるのは1年分までです。']);
+      const stripe = await stripeForUser(userId);
+      const books = await loadBooks((await storeForUser(userId)).store);
+      const items = await stripe.items(...jstRange(from, to));
+      return NextResponse.json({ candidates: fromStripe(items, { settings: books.settings, accounts: books.accounts, journal: books.journal }) });
+    }
     if (!(file instanceof File) || !file.size) throw new ValidationError(['CSV ファイルを選んでください。']);
     if (file.size > MAX_BYTES) throw new ValidationError(['ファイルが大きすぎます（5MB まで）。期間を分けて取り込んでください。']);
     const text = decodeText(Buffer.from(await file.arrayBuffer()));

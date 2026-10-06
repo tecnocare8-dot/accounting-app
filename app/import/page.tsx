@@ -17,6 +17,7 @@ interface Preview {
 }
 
 const HINT: Record<ImportKind, string> = {
+  stripe: 'サイト（eラーニング）の Stripe の決済・返金・手数料・振込を、期間を選んで読み込みます。何の売上か（受講料・更新コース・企業パッケージなど）は、サイトの決済の目印から決まります。先に設定の「Stripe との連携」でキーを入れてください。',
   receipts: '領収書アプリの「帳簿」のCSV（領収書一覧.csv）。分類→科目、支払い方法→貸方の科目は、設定の対応表で決めます。',
   'document-payouts': '書類アプリのドライブのフォルダにある 支払記録.csv。講師謝金／預り金（源泉徴収税）・普通預金 で入れます。',
   'document-incomes': '書類アプリの その他の入金.csv。普通預金・支払手数料／設定の科目（初期値：受託研修収入）で入れます。',
@@ -29,8 +30,13 @@ const ready = (c: Candidate) => c.input.lines.every((l) => (!l.debitAmount || l.
 const lockedStatus = (c: Candidate) => c.status === 'duplicate' || c.status === 'error';
 
 export default function ImportPage() {
-  const [kind, setKind] = useState<ImportKind>('receipts');
+  const [kind, setKind] = useState<ImportKind>('stripe');
   const [file, setFile] = useState<File | null>(null);
+  // 初期の期間は、今月の1日から今日まで（日本時間）
+  const [range, setRange] = useState(() => {
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    return { from: `${today.slice(0, 8)}01`, to: today };
+  });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [data, setData] = useState<Preview | null>(null);
   const [rows, setRows] = useState<Candidate[]>([]);
@@ -49,14 +55,17 @@ export default function ImportPage() {
   }, [loadLog]);
 
   async function read(opts: BankOptions | null = bank) {
-    if (!file) return setError('CSV ファイルを選んでください。');
+    if (kind !== 'stripe' && !file) return setError('CSV ファイルを選んでください。');
     setBusy(true);
     setError('');
     setNotice('');
     try {
       const form = new FormData();
       form.set('kind', kind);
-      form.set('file', file);
+      if (kind === 'stripe') {
+        form.set('from', range.from);
+        form.set('to', range.to);
+      } else if (file) form.set('file', file);
       if (kind === 'bank' && opts) form.set('bank', JSON.stringify(opts));
       const r = await api<Preview>('/api/import/preview', { method: 'POST', body: form });
       setData(r);
@@ -77,7 +86,7 @@ export default function ImportPage() {
     setError('');
     try {
       const r = await api<{ added: number; skipped: { index: number; reason: string }[] }>('/api/import/commit', {
-        method: 'POST', body: JSON.stringify({ kind, fileName: file?.name ?? '', inputs: chosen.map((c) => c.input) }),
+        method: 'POST', body: JSON.stringify({ kind, fileName: kind === 'stripe' ? `${range.from}〜${range.to}` : file?.name ?? '', inputs: chosen.map((c) => c.input) }),
       });
       setNotice(`${r.added}件を帳簿に入れました。${r.skipped.length ? `入れなかったもの ${r.skipped.length}件：${r.skipped.slice(0, 5).map((s) => s.reason).join('／')}` : ''}`);
       setData(null);
@@ -126,10 +135,17 @@ export default function ImportPage() {
             </select>
           </Field>
           <p className="text-sm">{HINT[kind]}</p>
-          <Field label="CSV ファイル">
-            <input type="file" accept=".csv,text/csv" className="block text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setData(null); setRows([]); setBank(null); }} />
-          </Field>
-          <Button disabled={busy || !file} onClick={() => read(null)}>{busy ? '読み込み中…' : '読み込む（まだ帳簿には入れません）'}</Button>
+          {kind === 'stripe' ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              <Field label="いつから"><input type="date" className={inputClass} value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></Field>
+              <Field label="いつまで"><input type="date" className={inputClass} value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></Field>
+            </div>
+          ) : (
+            <Field label="CSV ファイル">
+              <input type="file" accept=".csv,text/csv" className="block text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setData(null); setRows([]); setBank(null); }} />
+            </Field>
+          )}
+          <Button disabled={busy || (kind !== 'stripe' && !file)} onClick={() => read(null)}>{busy ? '読み込み中…' : '読み込む（まだ帳簿には入れません）'}</Button>
         </div>
       </Card>
       <ErrorBox message={error} />

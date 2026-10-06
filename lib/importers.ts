@@ -7,9 +7,10 @@ import type { Settings } from './settings';
 
 // CSV から伝票の候補を作る。候補は画面で確かめて（科目・区分を直し、入れるものを選んで）から帳簿に入れる
 
-export const IMPORT_KINDS = ['receipts', 'document-payouts', 'document-incomes', 'document-payments', 'bank'] as const;
+export const IMPORT_KINDS = ['stripe', 'receipts', 'document-payouts', 'document-incomes', 'document-payments', 'bank'] as const;
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 export const IMPORT_KIND_LABEL: Record<ImportKind, string> = {
+  stripe: 'Stripe（サイトの決済・返金・手数料・振込）',
   receipts: '領収書アプリ（領収書一覧.csv）',
   'document-payouts': '書類アプリ：業務委託の支払い（支払記録.csv）',
   'document-incomes': '書類アプリ：請求書のない入金（その他の入金.csv）',
@@ -102,7 +103,7 @@ interface Context {
 }
 
 /** 共通の確かめ：取り込み済み・日付・科目 */
-function finish(ctx: Context, row: number, input: Candidate['input'], extra: { status?: CandidateStatus; note?: string } = {}): Candidate {
+export function finishCandidate(ctx: Context, row: number, input: Candidate['input'], extra: { status?: CandidateStatus; note?: string } = {}): Candidate {
   const keys = new Set(ctx.journal.map((v) => `${v.source}\u0000${v.sourceId}`));
   const map = accountMap(ctx.accounts);
   // 科目が決まっていない行（空のコード）も残す。画面で科目を選んでもらう
@@ -136,7 +137,7 @@ export function fromReceipts(text: string, ctx: Context): Candidate[] {
     const amount = parseYen(t.get(r, '金額')) ?? 0;
     const expense = cat[category] ?? '';
     const by = t.get(r, '登録者');
-    return finish(ctx, i + 1, {
+    return finishCandidate(ctx, i + 1, {
       date: parseDate(t.get(r, '日付')), segment: '' as VoucherInput['segment'],
       description: `${company}${category ? `（${category}）` : ''}${by ? `／${by}` : ''}`, counterparty: company,
       source: 'receipts', sourceId: t.get(r, 'ID'),
@@ -162,9 +163,9 @@ export function fromDocumentPayouts(text: string, ctx: Context): Candidate[] {
       source: 'document-payout', sourceId: t.get(r, 'ID'),
       lines: [debit(ctx.settings.payoutAccount, amount + tax), credit('202', wht, '源泉徴収税'), credit('102', net)],
     };
-    if (t.get(r, '状態') === '取消') return finish(ctx, i + 1, input, { status: 'excluded', note: '取り消した支払いです' });
-    if (amount + tax !== wht + net) return finish(ctx, i + 1, input, { status: 'error', note: '報酬＋消費税と、源泉徴収税＋差引支払額が合いません' });
-    return finish(ctx, i + 1, input);
+    if (t.get(r, '状態') === '取消') return finishCandidate(ctx, i + 1, input, { status: 'excluded', note: '取り消した支払いです' });
+    if (amount + tax !== wht + net) return finishCandidate(ctx, i + 1, input, { status: 'error', note: '報酬＋消費税と、源泉徴収税＋差引支払額が合いません' });
+    return finishCandidate(ctx, i + 1, input);
   });
 }
 
@@ -184,8 +185,8 @@ export function fromDocumentIncomes(text: string, ctx: Context): Candidate[] {
       counterparty: t.get(r, '入金元'), source: 'document-income', sourceId: t.get(r, 'ID'),
       lines: incomeLines(ctx, amount, fee, false),
     };
-    if (t.get(r, '状態') === '取消') return finish(ctx, i + 1, input, { status: 'excluded', note: '取り消した入金です' });
-    return finish(ctx, i + 1, input);
+    if (t.get(r, '状態') === '取消') return finishCandidate(ctx, i + 1, input, { status: 'excluded', note: '取り消した入金です' });
+    return finishCandidate(ctx, i + 1, input);
   });
 }
 
@@ -195,7 +196,7 @@ export function fromDocumentPayments(text: string, ctx: Context): Candidate[] {
   return t.rows.map((r, i) => {
     const amount = parseYen(t.get(r, '金額')) ?? 0;
     const fee = parseYen(t.get(r, '手数料')) ?? 0;
-    return finish(ctx, i + 1, {
+    return finishCandidate(ctx, i + 1, {
       date: parseDate(t.get(r, '入金日')), segment: '' as VoucherInput['segment'],
       description: `請求書 ${t.get(r, '請求書番号')} の入金`, counterparty: '',
       source: 'document-payment', sourceId: t.get(r, 'ID'),
@@ -250,8 +251,8 @@ export function fromBank(text: string, opts: BankOptions, ctx: Context): Candida
       source: `bank:${opts.bankAccount}`, sourceId: `${base}|${n}`,
       lines: amount >= 0 ? [debit(opts.bankAccount, abs), credit(counter, abs)] : [debit(counter, abs), credit(opts.bankAccount, abs)],
     };
-    if (rule && !rule.accountCode) return out.push(finish(ctx, i + 1, input, { status: 'excluded', note: `規則「${rule.keyword}」で取り込まない` }));
-    const c = finish(ctx, i + 1, input, counter ? {} : { note: '摘要に合う規則がありません' });
+    if (rule && !rule.accountCode) return out.push(finishCandidate(ctx, i + 1, input, { status: 'excluded', note: `規則「${rule.keyword}」で取り込まない` }));
+    const c = finishCandidate(ctx, i + 1, input, counter ? {} : { note: '摘要に合う規則がありません' });
     // 書類アプリ・領収書などから、同じ口座の同じ金額の動きがすでに入っていれば、二重の恐れ
     if (c.status === 'ok' || c.status === 'needsAccount') {
       const twin = others.find((v) => Math.abs(Date.parse(v.date) - Date.parse(date)) <= 3 * 86400_000
@@ -272,6 +273,8 @@ export function buildCandidates(kind: ImportKind, text: string, ctx: Context, ba
     case 'bank':
       if (!bank) throw new ImportFormatError('銀行の明細の列を選んでください。');
       return fromBank(text, bank, ctx);
+    case 'stripe':
+      throw new ImportFormatError('Stripe は CSV ではなく、期間を選んで読み込みます。');
   }
 }
 

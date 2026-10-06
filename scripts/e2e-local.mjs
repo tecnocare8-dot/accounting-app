@@ -16,6 +16,23 @@ if (!/localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL ?? '') || !process.e
 }
 
 const prisma = new PrismaClient();
+
+// Stripe の代わりのサーバー（STRIPE_API_BASE=http://localhost:4242/v1 で起動したアプリが使う）
+import http from 'http';
+const T = Date.parse('2026-06-10T10:00:00+09:00') / 1000;
+const fakeStripe = http.createServer((req, res) => {
+  const u = new URL(req.url, 'http://x');
+  const send = (s, b) => { res.writeHead(s, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(b)); };
+  if (!String(req.headers.authorization).startsWith('Bearer rk_test_')) return send(401, { error: { message: 'bad key' } });
+  if (u.pathname === '/v1/balance') return send(200, { available: [] });
+  if (u.pathname === '/v1/balance_transactions') return send(200, { has_more: false, data: [
+    { id: 'txn_e2e_1', amount: 2000, fee: 72, net: 1928, created: T, currency: 'jpy', reporting_category: 'charge', description: null, source: { object: 'charge', payment_intent: 'pi_e2e' } },
+    { id: 'txn_e2e_2', amount: -1928, fee: 0, net: -1928, created: T + 86400, currency: 'jpy', reporting_category: 'payout', description: 'STRIPE PAYOUT', source: { object: 'payout' } },
+  ] });
+  if (u.pathname === '/v1/checkout/sessions') return send(200, { data: [{ metadata: { type: 'course_fee', memberId: 'TC99999' }, line_items: { data: [{ description: 'NLP入門' }] } }] });
+  send(404, { error: { message: 'not found' } });
+});
+await new Promise((r) => fakeStripe.listen(4242, r));
 let pass = 0;
 let fail = 0;
 function check(name, cond, extra = '') {
@@ -131,6 +148,26 @@ try {
   r = await a.api('/api/import/log');
   check('取り込み記録', r.body.log.length === 3, JSON.stringify(r.body));
 
+  console.log('■ Stripe（手元の代わりのサーバー）');
+  r = await a.api('/api/stripe');
+  check('最初はつながっていない', r.body.connected === false);
+  r = await a.api('/api/stripe', json('PUT', { key: 'sk_live_abcdefghijklmnop' }));
+  check('秘密キー（sk_）は受け付けない', r.status === 400 && r.body.error.includes('制限付きキー'), JSON.stringify(r.body));
+  r = await a.api('/api/stripe', json('PUT', { key: 'rk_test_e2eabcdefghijk' }));
+  check('制限付きキーでつながる', r.status === 200 && r.body.connected && r.body.hint.endsWith('hijk') && !JSON.stringify(r.body).includes('e2eabcdef'), JSON.stringify(r.body));
+  const sform = (from, to) => { const f = new FormData(); f.set('kind', 'stripe'); f.set('from', from); f.set('to', to); return { method: 'POST', body: f }; };
+  r = await a.api('/api/import/preview', sform('2026-06-01', '2026-06-30'));
+  check('Stripe の候補（受講料・振込）', r.status === 200 && r.body.candidates.map((c) => c.status).join() === 'ok,ok', JSON.stringify(r.body).slice(0, 300));
+  check('品名と種類が摘要に入る', r.body.candidates[0]?.input.description === '受講料：NLP入門', r.body.candidates[0]?.input.description);
+  r = await a.api('/api/import/commit', json('POST', { kind: 'stripe', fileName: '2026-06', inputs: r.body.candidates.map((c) => c.input) }));
+  check('Stripe を取り込める', r.body.added === 2, JSON.stringify(r.body));
+  r = await a.api('/api/import/preview', sform('2026-06-01', '2026-06-30'));
+  check('もう一度読むと取り込み済み', r.body.candidates.every((c) => c.status === 'duplicate'));
+  // 後の帳簿の確認のため、Stripe の分を消しておく
+  for (const v of (await a.api('/api/journal?year=2026-04-01')).body.vouchers.filter((v) => v.source === 'stripe')) {
+    await a.api(`/api/journal/${v.id}`, json('DELETE', { reason: 'e2e' }));
+  }
+
   console.log('■ 帳簿');
   r = await a.api('/api/reports/trial?year=2026-04-01');
   const row = (c) => r.body.rows.find((x) => x.code === c)?.closing;
@@ -171,6 +208,7 @@ try {
 } finally {
   await prisma.user.deleteMany({ where: { email: { startsWith: 'e2e-' } } });
   await prisma.$disconnect();
+  fakeStripe.close();
   console.log(`\n${pass} OK / ${fail} FAIL`);
   process.exit(fail ? 1 : 0);
 }

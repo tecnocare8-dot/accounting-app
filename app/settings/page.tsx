@@ -10,6 +10,7 @@ import { ACCOUNT_TYPE_LABEL, ACCOUNT_TYPES, SEGMENT_LABEL, SEGMENTS, sortAccount
 import { api } from '@/lib/client-api';
 import { yearLabel, type FiscalYear } from '@/lib/fiscal';
 import type { BankRule, Settings } from '@/lib/settings';
+import { STRIPE_TYPE_LABEL } from '@/lib/stripe-import';
 
 interface Data { settings: Settings; accounts: Account[]; years: FiscalYear[]; links: Record<string, string>; usedAccounts: string[] }
 
@@ -28,6 +29,7 @@ export default function SettingsPage() {
       <h1 className="text-xl font-bold">設定</h1>
       <EntitySection data={data} onSaved={load} />
       <AccountsSection data={data} onSaved={load} />
+      <StripeSection />
       <RulesSection data={data} onSaved={load} />
       <Card title="Googleドライブのファイル">
         <ul className="space-y-1 text-sm">
@@ -171,8 +173,9 @@ function AccountsSection({ data, onSaved }: { data: Data; onSaved: () => void })
   );
 }
 
-function MapEditor({ title, hint, value, accounts, onChange, keyLabel }: {
+function MapEditor({ title, hint, value, accounts, onChange, keyLabel, labelOf = (k) => k }: {
   title: string; hint: string; value: Record<string, string>; accounts: Account[]; onChange: (v: Record<string, string>) => void; keyLabel: string;
+  labelOf?: (key: string) => string;
 }) {
   const [key, setKey] = useState('');
   return (
@@ -182,7 +185,7 @@ function MapEditor({ title, hint, value, accounts, onChange, keyLabel }: {
       <ul className="space-y-1">
         {Object.entries(value).map(([k, code]) => (
           <li key={k} className="flex items-center gap-2">
-            <span className="w-32 shrink-0">{k}</span>
+            <span className="w-32 shrink-0">{labelOf(k)}</span>
             <AccountSelect label={`${k}の科目`} className="rounded border border-gray-500 px-1 py-1 text-sm" accounts={accounts} value={code} onChange={(c) => onChange({ ...value, [k]: c })} />
             <button type="button" className="text-sm underline" onClick={() => { const n = { ...value }; delete n[k]; onChange(n); }}>消す</button>
           </li>
@@ -201,13 +204,21 @@ function RulesSection({ data, onSaved }: { data: Data; onSaved: () => void }) {
   const [f, setF] = useState({
     receiptCategoryMap: s.receiptCategoryMap, paymentMethodMap: s.paymentMethodMap, payoutAccount: s.payoutAccount,
     documentIncomeAccount: s.documentIncomeAccount, bankRules: s.bankRules,
+    stripeTypeMap: s.stripeTypeMap, stripePayoutAccount: s.stripePayoutAccount,
   });
   const [rule, setRule] = useState<BankRule>({ keyword: '', accountCode: '' });
   const { error, notice, busy, run } = useSave(onSaved);
-  const empty = [...Object.entries(f.receiptCategoryMap), ...Object.entries(f.paymentMethodMap)].filter(([, c]) => !c).map(([k]) => k);
+  const empty = [...Object.entries(f.receiptCategoryMap), ...Object.entries(f.paymentMethodMap), ...Object.entries(f.stripeTypeMap)].filter(([, c]) => !c).map(([k]) => STRIPE_TYPE_LABEL[k] ?? k);
   return (
     <Card title="取り込みの対応表">
       <div id="rules" className="grid gap-6 text-sm md:grid-cols-2">
+        <MapEditor title="Stripe（サイトの決済の種類）→ 収入の科目" hint="サイトの決済に付いている種類ごとに、売上を入れる科目を決めます。" keyLabel="種類（英字）"
+          value={f.stripeTypeMap} accounts={data.accounts} labelOf={(k) => STRIPE_TYPE_LABEL[k] ? `${STRIPE_TYPE_LABEL[k]}` : k} onChange={(v) => setF({ ...f, stripeTypeMap: v })} />
+        <div className="space-y-2">
+          <p className="font-bold">Stripe からの振込先</p>
+          <Field label="振込が入る預金の科目"><AccountSelect accounts={data.accounts.filter((a) => a.type === 'asset')} value={f.stripePayoutAccount} onChange={(c) => setF({ ...f, stripePayoutAccount: c })} /></Field>
+          <p className="text-xs">銀行の明細を取り込むときは、摘要に Stripe の振込と分かる言葉（例：ｽﾄﾗｲﾌﾟ）の規則を「取り込まない」にしておくと、二重になりません。</p>
+        </div>
         <MapEditor title="領収書アプリの分類 → 科目" hint="領収書アプリの「分類」を、この科目の借方に入れます。" keyLabel="分類の名前"
           value={f.receiptCategoryMap} accounts={data.accounts} onChange={(v) => setF({ ...f, receiptCategoryMap: v })} />
         <MapEditor title="領収書アプリの支払い方法 → 貸方の科目" hint="ここにない支払い方法は普通預金になります。代表者が立て替えたときは未払金などにします。" keyLabel="支払い方法の名前"
@@ -274,6 +285,46 @@ function SwitchSection() {
         <ErrorBox message={error} />
         {adding ? <EntityForm onDone={() => { setAdding(false); toHome(); }} onCancel={() => setAdding(false)} /> : <Button variant="secondary" onClick={() => setAdding(true)}>法人を足す（株式会社など）</Button>}
         <p>ログイン中：{data.email}　<button type="button" className="underline" onClick={() => signOut()}>ログアウト</button></p>
+      </div>
+    </Card>
+  );
+}
+
+function StripeSection() {
+  const [state, setState] = useState<{ connected: boolean; hint: string } | null>(null);
+  const [key, setKey] = useState('');
+  const { error, notice, busy, run } = useSave(() => undefined);
+  const load = useCallback(() => {
+    api<{ connected: boolean; hint: string }>('/api/stripe').then(setState).catch(() => setState({ connected: false, hint: '' }));
+  }, []);
+  useEffect(load, [load]);
+  return (
+    <Card title="Stripe との連携">
+      <div className="space-y-3 text-sm">
+        {state?.connected ? (
+          <p>つながっています（キー：{state.hint}）。取り込みの画面で「Stripe」を選び、期間を選んで読み込みます。</p>
+        ) : (
+          <div className="space-y-2 leading-relaxed">
+            <p>サイトの決済を取り込むために、Stripe の<b>読み取り専用の制限付きキー</b>を入れてください。作り方：</p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>Stripe のダッシュボード →「開発者」→「API キー」→「制限付きのキーを作成」</li>
+              <li>名前を「会計アプリ（読み取り）」にし、次の権限を<b>読み取り</b>にする（ほかは「なし」のまま）：Balance、Charges、Checkout Sessions、Invoices、Payouts</li>
+              <li>作ったキー（rk_live_ で始まる）をコピーして、下に貼る</li>
+            </ol>
+            <p>キーは暗号化して保存し、画面には末尾しか出しません。書き込みもできる秘密キー（sk_ で始まる）は受け付けません。</p>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <input type="password" autoComplete="off" aria-label="Stripe の制限付きキー" className="min-w-0 flex-1 rounded border border-gray-500 px-2 py-1" placeholder="rk_live_..." value={key} onChange={(e) => setKey(e.target.value)} />
+          <Button disabled={busy || !key.trim()} onClick={() => run(async () => { await api('/api/stripe', { method: 'PUT', body: JSON.stringify({ key }) }); setKey(''); load(); }, 'Stripe とつながりました。')}>
+            {state?.connected ? 'キーを入れ替える' : 'つなぐ'}
+          </Button>
+          {state?.connected ? (
+            <Button variant="danger" disabled={busy} onClick={() => run(async () => { await api('/api/stripe', { method: 'DELETE' }); load(); }, 'Stripe との連携を外しました。')}>連携を外す</Button>
+          ) : null}
+        </div>
+        <ErrorBox message={error} />
+        <Notice message={notice} />
       </div>
     </Card>
   );

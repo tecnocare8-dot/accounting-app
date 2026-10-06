@@ -24,6 +24,10 @@ export interface Settings extends FiscalConfig {
   documentIncomeAccount: string;
   /** 銀行の明細の相手科目を、摘要の言葉で決める規則 */
   bankRules: BankRule[];
+  /** サイトの Stripe 決済の種類（checkout の metadata.type）→ 収入の科目 */
+  stripeTypeMap: Record<string, string>;
+  /** Stripe からの振込先の預金の科目 */
+  stripePayoutAccount: string;
 }
 
 const RECEIPT_DEFAULT: Record<string, string> = {
@@ -44,6 +48,12 @@ export const DEFAULT_SETTINGS: Settings = {
   // 書類アプリで請求書を出す研修は、法人から個別に受ける仕事（受託研修）が多いので収益事業の科目にしておく
   documentIncomeAccount: '406',
   bankRules: [],
+  // 認定料は2026-10-06に廃止（過去の分だけ認定料収入）。更新コースの受講料は受講料収入。企業パッケージは研修収入（非収益・要確認）
+  stripeTypeMap: {
+    course_fee: '401', renewal_fee: '401', certification_fee: '402', package_purchase: '404',
+    premium_membership: '411', company_membership: '411',
+  },
+  stripePayoutAccount: '102',
 };
 
 const codeOk = (s: unknown): s is string => typeof s === 'string' && /^\d{3}$/.test(s);
@@ -74,6 +84,8 @@ export function normalizeSettings(raw: unknown): Settings {
     paymentMethodMap: codeMap(r.paymentMethodMap, d.paymentMethodMap),
     payoutAccount: codeOk(r.payoutAccount) ? r.payoutAccount : d.payoutAccount,
     documentIncomeAccount: codeOk(r.documentIncomeAccount) ? r.documentIncomeAccount : d.documentIncomeAccount,
+    stripeTypeMap: codeMap(r.stripeTypeMap, d.stripeTypeMap),
+    stripePayoutAccount: codeOk(r.stripePayoutAccount) ? r.stripePayoutAccount : d.stripePayoutAccount,
     bankRules: Array.isArray(r.bankRules)
       ? r.bankRules
         .filter((x): x is BankRule => !!x && typeof x.keyword === 'string' && x.keyword.trim() !== '' && (x.accountCode === '' || codeOk(x.accountCode)))

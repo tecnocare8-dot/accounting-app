@@ -34,3 +34,9 @@
 - `npm run dev`（ポート3200）。`.env` に `DRIVE_FAKE_DIR=./fake-drive` を入れると、Google ドライブの代わりに手元のフォルダを使う
 - ログインの代わり：`node --env-file=.env scripts/dev-session.mjs` で出た値をブラウザの開発者ツールで実行
 - 自動テスト：`npm test`。API の通し確認：`npm run build && npx next start -p 3200 &` → `E2E_BASE=http://localhost:3200 node --env-file=.env scripts/e2e-local.mjs`
+
+## Stripe との連携（段階2）
+1. Stripe のダッシュボード →「開発者」→「API キー」→「制限付きのキーを作成」
+2. 権限は次の5つを「読み取り」に（ほかは「なし」）：Balance、Charges、Checkout Sessions、Invoices、Payouts
+3. 会計アプリの設定 →「Stripe との連携」に rk_live_ で始まるキーを貼る（暗号化して Neon に保存。sk_ は受け付けない）
+4. 取り込み →「Stripe」→ 期間を選んで読み込む。銀行の明細では、Stripe からの振込の摘要の規則を「取り込まない」にしておく

@@ -7,6 +7,8 @@ import { prisma } from './prisma';
 import { DEFAULT_SETTINGS, normalizeSettings } from './settings';
 import { createStore, FolderMissingError, setupFolder, type LedgerStore } from './store';
 import { isDate } from './fiscal';
+import { decryptSecret, encryptSecret } from './crypto';
+import { stripeClient } from './stripe-api';
 
 const folderUrl = (id: string) => `https://drive.google.com/drive/folders/${id}`;
 
@@ -93,4 +95,43 @@ export async function depsForUser(userId: string): Promise<LedgerDeps> {
 export async function renameEntity(userId: string, name: string) {
   const { entityId } = await storeForUser(userId);
   await prisma.entity.update({ where: { id: entityId }, data: { name } });
+}
+
+// ---------------------------------------------------------------- Stripe のキー（法人ごと、暗号化して保存）
+
+async function currentEntity(userId: string) {
+  const { entityId } = await storeForUser(userId);
+  return prisma.entity.findUniqueOrThrow({ where: { id: entityId } });
+}
+
+/** 画面に出す接続の状態（キーそのものは返さない） */
+export async function stripeStatus(userId: string) {
+  const e = await currentEntity(userId);
+  const key = e.stripeKey ? decryptSecret(e.stripeKey) : null;
+  return { connected: Boolean(key), hint: key ? `${key.slice(0, 8)}…${key.slice(-4)}` : '' };
+}
+
+/** 制限付きキーを確かめてから保存する。書き込みもできるキー（sk_）は受け付けない */
+export async function saveStripeKey(userId: string, raw: unknown) {
+  const key = typeof raw === 'string' ? raw.trim() : '';
+  if (!/^rk_(live|test)_[A-Za-z0-9]{10,}$/.test(key)) {
+    throw new ValidationError(['Stripe の「制限付きキー」（rk_live_ で始まるもの）を入れてください。sk_ で始まる秘密キーは、書き込みもできてしまうので使いません。']);
+  }
+  await stripeClient(key).check();
+  const e = await currentEntity(userId);
+  await prisma.entity.update({ where: { id: e.id }, data: { stripeKey: encryptSecret(key) } });
+  return stripeStatus(userId);
+}
+
+export async function removeStripeKey(userId: string) {
+  const e = await currentEntity(userId);
+  await prisma.entity.update({ where: { id: e.id }, data: { stripeKey: null } });
+}
+
+/** 取り込み用の Stripe の読み取り口。未接続なら案内付きのエラー */
+export async function stripeForUser(userId: string) {
+  const e = await currentEntity(userId);
+  const key = e.stripeKey ? decryptSecret(e.stripeKey) : null;
+  if (!key) throw new ValidationError(['Stripe とまだつながっていません。設定の「Stripe との連携」で制限付きキーを入れてください。']);
+  return stripeClient(key);
 }

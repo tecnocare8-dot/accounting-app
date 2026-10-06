@@ -181,6 +181,7 @@ export async function updateSettings(deps: LedgerDeps, raw: unknown): Promise<Se
     if (early) errors.push(`${early.date} の伝票があるので、帳簿を付け始めた日をそれより後にはできません。`);
     const codes = new Set(accounts.map((a) => a.code));
     const used = [...Object.values(next.receiptCategoryMap), ...Object.values(next.paymentMethodMap), next.payoutAccount,
+      ...Object.values(next.stripeTypeMap), next.stripePayoutAccount,
       next.documentIncomeAccount, ...next.bankRules.map((b) => b.accountCode).filter(Boolean)];
     const missing = [...new Set(used.filter((c) => !codes.has(c)))];
     if (missing.length) errors.push(`対応表に、ない科目（${missing.join('、')}）が入っています。`);

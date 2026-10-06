@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     if (!Array.isArray(body.inputs) || !body.inputs.length) throw new ValidationError(['取り込む行を選んでください。']);
     if (body.inputs.length > 5000) throw new ValidationError(['一度に取り込めるのは5000行までです。']);
     // 取り込み元は種類から決める（画面から別の取り込み元を名乗れないように）
-    const expect = kind === 'bank' ? /^bank:\d{3}$/ : new RegExp(`^${{ receipts: 'receipts', 'document-payouts': 'document-payout', 'document-incomes': 'document-income', 'document-payments': 'document-payment' }[kind]}$`);
+    const expect = kind === 'bank' ? /^bank:\d{3}$/ : new RegExp(`^${{ stripe: 'stripe', receipts: 'receipts', 'document-payouts': 'document-payout', 'document-incomes': 'document-income', 'document-payments': 'document-payment' }[kind]}$`);
     const bad = body.inputs.findIndex((x) => !expect.test(String((x as { source?: unknown })?.source ?? '')) || !(x as { sourceId?: unknown })?.sourceId);
     if (bad >= 0) throw new ValidationError([`${bad + 1}件目の取り込み元が正しくありません。もう一度ファイルを読み込んでください。`]);
     const deps = await depsForUser(userId);
