@@ -20,6 +20,8 @@ export function errorResponse(error: unknown, context: string): Response {
   if (error instanceof ImportFormatError) return json(400, error.message);
   if (error instanceof NotFoundError) return json(404, error.message);
   console.error(`${context}:`, error);
+  // 設定の不足（Google Cloud で Drive API が無効 など）は、そのまま伝える
+  if (error instanceof Error && error.message.includes('Google Drive API')) return json(503, error.message, { code: 'DRIVE_API_DISABLED' });
   return json(500, 'エラーが起きました。時間をおいて、もう一度お試しください。');
 }
 
