@@ -149,6 +149,7 @@ export default function ImportPage() {
         </div>
       </Card>
       <ErrorBox message={error} />
+      {error.includes('Stripe とまだつながっていません') ? <p className="text-sm"><Link className="underline" href="/settings#stripe">設定の「Stripe との連携」を開く</Link></p> : null}
       <Notice message={notice} />
 
       {kind === 'bank' && bank && data ? (

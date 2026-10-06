@@ -27,12 +27,17 @@ export default function SettingsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">設定</h1>
+      <nav aria-label="設定の目次" className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        {[['#stripe', 'Stripe との連携'], ['#rules', '取り込みの対応表'], ['#accounts', '勘定科目'], ['#files', 'ドライブのファイル'], ['#entity', '法人の切り替え']].map(([href, label]) => (
+          <a key={href} href={href} className="underline">{label}</a>
+        ))}
+      </nav>
       <EntitySection data={data} onSaved={load} />
-      <AccountsSection data={data} onSaved={load} />
       <StripeSection />
       <RulesSection data={data} onSaved={load} />
+      <AccountsSection data={data} onSaved={load} />
       <Card title="Googleドライブのファイル">
-        <ul className="space-y-1 text-sm">
+        <ul id="files" className="space-y-1 text-sm">
           {Object.entries(data.links).map(([k, url]) => <li key={k}><a className="underline" href={url} target="_blank" rel="noreferrer">{FILE_LABEL[k] ?? k}</a></li>)}
         </ul>
         <p className="mt-2 text-sm"><Link className="underline" href="/audit">変更履歴を見る</Link></p>
@@ -136,7 +141,7 @@ function AccountsSection({ data, onSaved }: { data: Data; onSaved: () => void })
   const used = new Set(data.usedAccounts);
   return (
     <Card title="勘定科目">
-      <p className="mb-2 text-sm leading-relaxed">
+      <p id="accounts" className="mb-2 scroll-mt-4 text-sm leading-relaxed">
         区分は、その科目を使う伝票の区分の初期値です。税務署に確かめた結果に合わせて直してください。「課税売上」は消費税の課税売上（1,000万円の判定）に数える科目で、収益事業かどうかに関係なく数えます。
         使わない科目は「使う」の印を外すと、選ぶ欄に出なくなります（過去の仕訳はそのまま）。
       </p>
@@ -300,7 +305,7 @@ function StripeSection() {
   useEffect(load, [load]);
   return (
     <Card title="Stripe との連携">
-      <div className="space-y-3 text-sm">
+      <div id="stripe" className="scroll-mt-4 space-y-3 text-sm">
         {state?.connected ? (
           <p>つながっています（キー：{state.hint}）。取り込みの画面で「Stripe」を選び、期間を選んで読み込みます。</p>
         ) : (
