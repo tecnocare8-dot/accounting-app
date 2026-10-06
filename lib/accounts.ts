@@ -54,8 +54,10 @@ export const DEFAULT_ACCOUNTS: Account[] = [
   // 認定料・更新料：受講料に含まれる形・会費として扱う形なら非収益。独立したサービスとして売ると収益事業になりやすい
   a('402', '認定料収入', 'revenue', 'nonprofit', { taxableSales: true, needsCheck: true }),
   a('403', '更新料収入', 'revenue', 'nonprofit', { taxableSales: true, needsCheck: true }),
-  // 病院・施設などの法人向けの研修（企業パッケージ）は「請負業」になりやすい
-  a('404', '研修収入', 'revenue', 'profit', { taxableSales: true }),
+  // 企業パッケージ：法人が公開講座の受講枠を買うだけ（中身・値段は個人向けと同じ）なので非収益。税務署に確かめるまで要確認
+  a('404', '研修収入', 'revenue', 'nonprofit', { taxableSales: true, needsCheck: true }),
+  // 法人の求めに合わせて作るカスタマイズ研修は、法人から受託する「請負業」＝収益事業
+  a('406', '受託研修収入', 'revenue', 'profit', { taxableSales: true }),
   // テキスト・グッズの別売りは物品販売業・出版業
   a('405', '物品販売収入', 'revenue', 'profit', { taxableSales: true }),
   a('411', '会費収入', 'revenue', 'nonprofit'),

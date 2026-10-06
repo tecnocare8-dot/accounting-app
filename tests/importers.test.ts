@@ -66,16 +66,16 @@ describe('書類アプリ', () => {
     expect(c[2].input.lines).toHaveLength(2);
   });
 
-  it('入金：普通預金・支払手数料／研修収入（設定の科目）', () => {
+  it('入金：普通預金・支払手数料／受託研修収入（設定の科目）', () => {
     const inc = toCsv(['ID', '入金番号', '状態', '入金元の種類', '入金元', 'サービス提供月', '入金日', '入金額', '手数料'], [
       ['i1', 'INC-2026-0001', '記録済み', 'その他', 'B病院', '', '2026-07-10', 49560, 440],
     ]);
     const c = buildCandidates('document-incomes', inc, ctx());
-    expect(c[0].input.lines).toEqual([line('102', 49560, '', 0), line('502', 440, '', 0, '振込手数料など'), line('', 0, '404', 50000)]);
+    expect(c[0].input.lines).toEqual([line('102', 49560, '', 0), line('502', 440, '', 0, '振込手数料など'), line('', 0, '406', 50000)]);
     expect(c[0].input.segment).toBe('common');
     const pay = toCsv(['ID', '請求書ID', '請求書番号', '入金日', '金額', '手数料', '方法', '登録日時'], [['m1', 'd1', 'INV-2026-0001', '2026-07-11', 3000, 0, '現金', '']]);
     const p = buildCandidates('document-payments', pay, ctx());
-    expect(p[0].input.lines).toEqual([line('101', 3000, '', 0), line('', 0, '404', 3000)]);
+    expect(p[0].input.lines).toEqual([line('101', 3000, '', 0), line('', 0, '406', 3000)]);
     expect(p[0].input.segment).toBe('profit');
   });
 });

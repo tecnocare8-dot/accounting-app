@@ -36,7 +36,7 @@ describe('伝票の検証', () => {
   });
 
   it('区分の初期値は、最初の収入・支出の科目の区分', () => {
-    expect(defaultSegment([line('102', 1, '404', 1)], DEFAULT_ACCOUNTS)).toBe('profit');
+    expect(defaultSegment([line('102', 1, '406', 1)], DEFAULT_ACCOUNTS)).toBe('profit');
     expect(defaultSegment([line('102', 1, '401', 1)], DEFAULT_ACCOUNTS)).toBe('nonprofit');
     expect(defaultSegment([line('102', 1, '103', 1)], DEFAULT_ACCOUNTS)).toBe('nonprofit');
   });

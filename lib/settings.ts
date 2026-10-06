@@ -41,7 +41,8 @@ export const DEFAULT_SETTINGS: Settings = {
   receiptCategoryMap: RECEIPT_DEFAULT,
   paymentMethodMap: { 現金: '101', クレジットカード: '201' },
   payoutAccount: '501',
-  documentIncomeAccount: '404',
+  // 書類アプリで請求書を出す研修は、法人から個別に受ける仕事（受託研修）が多いので収益事業の科目にしておく
+  documentIncomeAccount: '406',
   bankRules: [],
 };
 

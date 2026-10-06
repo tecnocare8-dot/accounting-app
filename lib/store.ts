@@ -87,9 +87,9 @@ export function createStore({ backend, folderId, lock }: StoreDeps) {
 
   async function loadAccounts(): Promise<Account[]> {
     const list = accountsFromCsv((await read('accounts')) ?? '');
-    // 仕訳帳を読めるように、ファイルから消された初期の科目は戻しておく
+    // あとから増えた初期の科目（画面からは科目を消せないので、無いもの＝新しく足した科目）を足しておく
     const codes = new Set(list.map((a) => a.code));
-    return [...list, ...DEFAULT_ACCOUNTS.filter((a) => !codes.has(a.code)).map((a) => ({ ...a, active: false }))];
+    return [...list, ...DEFAULT_ACCOUNTS.filter((a) => !codes.has(a.code))];
   }
 
   return {
