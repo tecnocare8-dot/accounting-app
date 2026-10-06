@@ -117,6 +117,10 @@ export async function saveStripeKey(userId: string, raw: unknown) {
   if (!/^rk_(live|test)_[A-Za-z0-9]{10,}$/.test(key)) {
     throw new ValidationError(['Stripe の「制限付きキー」（rk_live_ で始まるもの）を入れてください。sk_ で始まる秘密キーは、書き込みもできてしまうので使いません。']);
   }
+  // 本番では、テスト用（サンドボックス）のキーは受け付けない（テストの決済が帳簿に入らないように）
+  if (process.env.VERCEL_ENV === 'production' && key.startsWith('rk_test_')) {
+    throw new ValidationError(['これはテスト用（サンドボックス）のキーです。Stripe のダッシュボードを本番の環境に切り替えてから、rk_live_ で始まるキーを作ってください。']);
+  }
   await stripeClient(key).check();
   const e = await currentEntity(userId);
   await prisma.entity.update({ where: { id: e.id }, data: { stripeKey: encryptSecret(key) } });
