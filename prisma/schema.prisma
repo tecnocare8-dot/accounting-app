@@ -1,0 +1,37 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+// Googleログインした利用者。帳簿の中身は利用者本人のGoogleドライブ（法人ごとのフォルダ）に保存し、
+// ここにはドライブへ書き込むための連携情報と、法人の一覧だけを持つ
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  name               String?
+  // Googleのリフレッシュトークン（lib/crypto.ts で暗号化して保存）。null = ドライブ未連携
+  googleRefreshToken String?
+  // いま画面で選んでいる法人
+  currentEntityId    String?
+  createdAt          DateTime @default(now())
+  entities           Entity[]
+}
+
+// 法人（一般社団法人・株式会社など）。帳簿は法人ごとに別のフォルダ
+model Entity {
+  id              String   @id @default(cuid())
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name            String
+  driveFolderId   String?
+  driveFolderName String?
+  createdAt       DateTime @default(now())
+
+  @@index([ownerId])
+}
