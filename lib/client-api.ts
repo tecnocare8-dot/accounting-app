@@ -33,3 +33,6 @@ export async function apiBlob(url: string, init?: RequestInit): Promise<Blob> {
 }
 
 export const yen = (n: number) => `${n.toLocaleString('ja-JP')}円`;
+
+// 区切りだけ（表の中で使う。マイナスは△）
+export const num = (n: number) => (n < 0 ? `△${(-n).toLocaleString('ja-JP')}` : n.toLocaleString('ja-JP'));
