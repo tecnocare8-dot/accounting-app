@@ -63,13 +63,12 @@ export function VoucherForm({ accounts, initial, segmentTouched: touchedInit = f
     setD(next);
   };
   const setLine = (i: number, patch: Partial<VoucherDraft['lines'][number]>) => setLines(d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
-  /** 金額が1つだけ空いていれば、差額を入れる */
-  const fillDiff = (i: number, side: 'debit' | 'credit') => {
-    const l = d.lines[i];
-    const diff = side === 'debit' ? credit - debit : debit - credit;
-    if (diff <= 0) return;
-    if (side === 'debit' && l.debitAccount && !l.debitAmount) setLine(i, { debitAmount: String(diff) });
-    if (side === 'credit' && l.creditAccount && !l.creditAmount) setLine(i, { creditAmount: String(diff) });
+  /** 科目があって金額が空いている欄に、差額を入れる（足りない側の最初の空欄） */
+  const diffSide = debit > credit ? 'credit' : 'debit';
+  const diffTarget = debit === credit ? -1 : d.lines.findIndex((l) => (diffSide === 'debit' ? l.debitAccount && !l.debitAmount : l.creditAccount && !l.creditAmount));
+  const fillDiff = () => {
+    const amount = String(Math.abs(debit - credit));
+    setLine(diffTarget, diffSide === 'debit' ? { debitAmount: amount } : { creditAmount: amount });
   };
 
   return (
@@ -93,10 +92,10 @@ export function VoucherForm({ accounts, initial, segmentTouched: touchedInit = f
           <div key={i} className="grid grid-cols-2 gap-2 rounded-lg border border-gray-300 p-2 lg:grid-cols-[1fr_8rem_1fr_8rem_1fr_2.5rem] lg:border-0 lg:p-0">
             <AccountSelect label={`${i + 1}行目の借方の科目`} accounts={accounts} value={l.debitAccount} empty="（借方なし）" onChange={(c) => setLine(i, { debitAccount: c })} />
             <input aria-label={`${i + 1}行目の借方の金額`} inputMode="numeric" className={`${inputClass} text-right`} value={l.debitAmount} disabled={!l.debitAccount}
-              onChange={(e) => setLine(i, { debitAmount: digits(e.target.value) })} onFocus={() => fillDiff(i, 'debit')} />
+              onChange={(e) => setLine(i, { debitAmount: digits(e.target.value) })} />
             <AccountSelect label={`${i + 1}行目の貸方の科目`} accounts={accounts} value={l.creditAccount} empty="（貸方なし）" onChange={(c) => setLine(i, { creditAccount: c })} />
             <input aria-label={`${i + 1}行目の貸方の金額`} inputMode="numeric" className={`${inputClass} text-right`} value={l.creditAmount} disabled={!l.creditAccount}
-              onChange={(e) => setLine(i, { creditAmount: digits(e.target.value) })} onFocus={() => fillDiff(i, 'credit')} />
+              onChange={(e) => setLine(i, { creditAmount: digits(e.target.value) })} />
             <input aria-label={`${i + 1}行目の摘要`} className={`${inputClass} col-span-2 lg:col-span-1`} value={l.memo} placeholder="行の摘要（任意）" onChange={(e) => setLine(i, { memo: e.target.value })} />
             <button type="button" aria-label={`${i + 1}行目を消す`} className="col-span-2 rounded-lg border border-gray-500 text-sm lg:col-span-1" disabled={d.lines.length <= 1}
               onClick={() => setLines(d.lines.filter((_, j) => j !== i))}>×</button>
@@ -108,6 +107,11 @@ export function VoucherForm({ accounts, initial, segmentTouched: touchedInit = f
       <div className={`rounded-lg border p-3 text-sm ${debit === credit && debit > 0 ? 'border-green-600 bg-green-50' : 'border-amber-600 bg-amber-50'}`}>
         借方の合計 <b>{num(debit)}</b> 円 ／ 貸方の合計 <b>{num(credit)}</b> 円
         {debit !== credit ? <span className="ml-2 font-bold">差 {num(Math.abs(debit - credit))} 円</span> : null}
+        {diffTarget >= 0 ? (
+          <button type="button" className="ml-2 rounded border border-gray-600 bg-white px-2 py-0.5 text-xs font-bold" onClick={fillDiff}>
+            差額を{diffTarget + 1}行目の{diffSide === 'debit' ? '借方' : '貸方'}に入れる
+          </button>
+        ) : null}
       </div>
       {needsCheck.length ? (
         <p className="rounded-lg border border-amber-600 bg-amber-50 p-3 text-sm text-amber-950">

@@ -24,9 +24,9 @@ export default function LedgerPage() {
 
   const query = new URLSearchParams({ ...(year ? { year } : {}), ...(to ? { to } : {}), ...(segment ? { segment } : {}) }).toString();
   const load = useCallback(() => {
-    setError('');
-    if (tab === 'trial') api<Trial>(`/api/reports/trial?${query}`).then(setTrial).catch((e: Error) => setError(e.message));
-    else api<Ledger>(`/api/reports/ledger?${query}&code=${code}`).then(setLedger).catch((e: Error) => setError(e.message));
+    const ok = <T,>(set: (v: T) => void) => (v: T) => { setError(''); set(v); };
+    if (tab === 'trial') api<Trial>(`/api/reports/trial?${query}`).then(ok(setTrial)).catch((e: Error) => setError(e.message));
+    else api<Ledger>(`/api/reports/ledger?${query}&code=${code}`).then(ok(setLedger)).catch((e: Error) => setError(e.message));
   }, [tab, query, code]);
   useEffect(load, [load]);
 

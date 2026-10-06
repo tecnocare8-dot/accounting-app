@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useCallback, useEffect, useState } from 'react';
 import { EntityForm, useEntity } from '@/components/AppShell';
@@ -246,12 +247,15 @@ function RulesSection({ data, onSaved }: { data: Data; onSaved: () => void }) {
 
 function SwitchSection() {
   const { data, reload } = useEntity();
+  const router = useRouter();
+  /** 法人が変わったら、ホームから開き直す */
+  const toHome = () => { reload(); router.push('/'); };
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
   async function select(id: string) {
     try {
       await api('/api/entities/select', { method: 'POST', body: JSON.stringify({ id }) });
-      window.location.href = '/';
+      toHome();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -268,7 +272,7 @@ function SwitchSection() {
           ))}
         </ul>
         <ErrorBox message={error} />
-        {adding ? <EntityForm onDone={() => { setAdding(false); reload(); window.location.href = '/'; }} onCancel={() => setAdding(false)} /> : <Button variant="secondary" onClick={() => setAdding(true)}>法人を足す（株式会社など）</Button>}
+        {adding ? <EntityForm onDone={() => { setAdding(false); toHome(); }} onCancel={() => setAdding(false)} /> : <Button variant="secondary" onClick={() => setAdding(true)}>法人を足す（株式会社など）</Button>}
         <p>ログイン中：{data.email}　<button type="button" className="underline" onClick={() => signOut()}>ログアウト</button></p>
       </div>
     </Card>

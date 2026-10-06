@@ -6,6 +6,7 @@ import { AccountSelect, Button, Card, ErrorBox, Field, inputClass, Notice } from
 import { SEGMENT_LABEL, SEGMENTS, type Account, type Segment } from '@/lib/accounts';
 import { api, num } from '@/lib/client-api';
 import { CANDIDATE_STATUS_LABEL, IMPORT_KIND_LABEL, IMPORT_KINDS, type BankOptions, type Candidate, type ImportKind } from '@/lib/importers';
+import { defaultSegment } from '@/lib/journal';
 import type { ImportLog } from '@/lib/records';
 
 interface Preview {
@@ -60,6 +61,7 @@ export default function ImportPage() {
       const r = await api<Preview>('/api/import/preview', { method: 'POST', body: form });
       setData(r);
       setRows(r.candidates);
+      setTouched(new Set());
       if (r.bank) setBank(r.bank);
     } catch (e) {
       setError((e as Error).message);
@@ -95,8 +97,13 @@ export default function ImportPage() {
     if (!c.include && next.include === c.include && !ready(c) && ready(next) && !lockedStatus(next)) return { ...next, include: true };
     return next;
   }));
+  // 区分を自分で選んでいない行は、科目を選んだときに科目の区分に合わせる
+  const [touched, setTouched] = useState<Set<number>>(new Set());
   const setLineAccount = (i: number, li: number, side: 'debitAccount' | 'creditAccount', code: string) =>
-    update(i, (c) => ({ ...c, input: { ...c.input, lines: c.input.lines.map((l, k) => (k === li ? { ...l, [side]: code } : l)) } }));
+    update(i, (c) => {
+      const lines = c.input.lines.map((l, k) => (k === li ? { ...l, [side]: code } : l));
+      return { ...c, input: { ...c.input, lines, segment: touched.has(i) ? c.input.segment : defaultSegment(lines, accounts) } };
+    });
 
   const chosenCount = rows.filter((c) => c.include && ready(c) && !lockedStatus(c)).length;
   const colSelect = (label: string, key: 'dateCol' | 'descCol' | 'inCol' | 'outCol' | 'amountCol') => bank ? (
@@ -173,7 +180,7 @@ export default function ImportPage() {
                 {!lockedStatus(c) ? (
                   <div className="flex flex-wrap items-center gap-2 pl-6">
                     <select aria-label={`${c.row}行目の区分`} className="rounded border border-gray-500 px-1 py-1 text-sm" value={c.input.segment}
-                      onChange={(e) => update(i, (x) => ({ ...x, input: { ...x.input, segment: e.target.value as Segment } }))}>
+                      onChange={(e) => { setTouched(new Set(touched).add(i)); update(i, (x) => ({ ...x, input: { ...x.input, segment: e.target.value as Segment } })); }}>
                       {SEGMENTS.map((s) => <option key={s} value={s}>{SEGMENT_LABEL[s]}</option>)}
                     </select>
                     {c.input.lines.map((l, li) => (
