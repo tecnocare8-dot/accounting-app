@@ -80,13 +80,12 @@ export const DEFAULT_ACCOUNTS: Account[] = [
   a('599', '雑費', 'expense', 'common'),
 ];
 
-/** 新しい科目のコード：同じ種類の科目の最大＋1 */
-export function nextAccountCode(accounts: Account[], type: AccountType): string {
+/** 新しい科目のコード：同じ種類の番号帯（例：支出は501〜599）で空いている最初の番号。空きがなければ null */
+export function nextAccountCode(accounts: Account[], type: AccountType): string | null {
   const base = { asset: 100, liability: 200, equity: 300, revenue: 400, expense: 500 }[type];
-  const used = accounts.map((x) => Number(x.code)).filter((n) => n > base && n < base + 100);
-  const next = used.length ? Math.max(...used) + 1 : base + 1;
-  if (next >= base + 100) throw new Error('この種類の科目はこれ以上増やせません。');
-  return String(next);
+  const used = new Set(accounts.map((x) => x.code));
+  for (let n = base + 1; n < base + 100; n++) if (!used.has(String(n))) return String(n);
+  return null;
 }
 
 export function accountMap(accounts: Account[]): Map<string, Account> {
